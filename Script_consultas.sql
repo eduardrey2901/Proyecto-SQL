@@ -45,10 +45,13 @@ from film f;
 -- 11. Encuentra lo que costó el antepenúltimo alquiler ordenado por día.
 select p.amount, p.rental_id 
 from payment p
-where p.rental_id in (select r.rental_id 
+where p.rental_id = (select r.rental_id 
 					from rental r
 					order by r.rental_date desc
 					limit 1 offset 2);
+select * from rental
+order by rental_date desc;
+
 
 /* 12. Encuentra el título de las películas en la tabla “filmˮ que no sean ni ‘NC-17ʼ ni
 ‘Gʼ en cuanto a su clasificación.*/
@@ -97,7 +100,7 @@ where c.name = 'Comedy' and f.length > 180;
  la categoría junto con el promedio de duración. */
 with media_categoria as (select c.name, AVG(f.length)
 	from category c inner join film_category fc on c.category_id = fc.category_id inner join film f on fc.film_id = f.film_id
-	group by c.category_id)
+	group by c.category_id, c.name)
 select name as Categoria, "avg" as Promedio
 from media_categoria
 where "avg" > 110;
@@ -114,7 +117,7 @@ from actor a;
 select r.rental_date, count(r.rental_id)
 from rental r
 group by r.rental_date 
-order by count(r.rental_date) desc; 
+order by count(r.rental_id) desc; 
 
 -- 24. Encuentra las películas con una duración superior al promedio.
 select *
@@ -123,9 +126,9 @@ where f.length > (select avg(f2.length)
 						from film f2);
 
 -- 25. Averigua el número de alquileres registrados por mes.
-select to_char(r.rental_date, 'Month') as mes, count(r.rental_id)
+select to_char(r.rental_date, 'YYYY-MM') as mes_ano, count(r.rental_id)
 from rental r 
-group by to_char(r.rental_date, 'Month');
+group by to_char(r.rental_date, 'YYYY-MM');
 
 -- 26. Encuentra el promedio, la desviación estándar y varianza del total pagado.
 select avg(p.amount) as Promedio, stddev(p.amount) as Desviacion, variance(p.amount) as Variancia
@@ -140,6 +143,11 @@ where i.inventory_id in (select distinct(i2.inventory_id)
 												from payment p
 												where p.amount > (select avg(p2.amount)
 																	from payment p2)));
+	-- Correción
+	select distinct f.*
+	from film f inner join inventory i on f.film_id = i.film_id inner join rental r on i.inventory_id = r.inventory_id
+	inner join payment p on r.rental_id = p.rental_id
+	where p.amount > (select AVG(amount) from payment);
 
 -- 28. Muestra el id de los actores que hayan participado en más de 40 películas.
 with pelis_actor as (select fa.actor_id, count(fa.film_id) as n_films
@@ -152,6 +160,7 @@ where pa2.n_films > 40;
 -- 29. Obtener todas las películas y, si están disponibles en el inventario, mostrar la cantidad disponible.
 select f.title, f.film_id , count(i.inventory_id) as Disponibles
 from film f left join inventory i on f.film_id = i.film_id
+where inventory_in_stock(i.inventory_id)
 group by f.title, f.film_id;
 
 -- 30. Obtener los actores y el número de películas en las que ha actuado
@@ -209,7 +218,10 @@ limit 5;
 -- 41. Agrupa los actores por su nombre y cuenta cuántos actores tienen el mismo nombre. ¿Cuál es el nombre más repetido?
 select a.first_name, count(a.first_name)
 from actor a 
-group by a.first_name ;
+group by a.first_name
+order by count(a.first_name) desc 
+limit 1;
+	-- en este caso la comanda sería así, pero hay 3 nombres que se repiten 4 veces
 
 -- 42. Encuentra todos los alquileres y los nombres de los clientes que los realizaron.
 select r.*, c.first_name, c.last_name
@@ -320,17 +332,17 @@ order by a2.last_name asc;
 -- 56. Encuentra el nombre y apellido de los actores que no han actuado en ninguna película de la categoría ‘Music’.
 select a2.first_name, a2.last_name 
 from actor a2
-where a2.actor_id in (select distinct(a.actor_id)
+where a2.actor_id not in (select distinct(a.actor_id)
 						from actor a inner join film_actor fa on a.actor_id = fa.actor_id
-						where fa.film_id not in (select f.film_id
-													from film f inner join film_category fc on f.film_id = fc.film_id inner join category c on fc.category_id = c.category_id
-													where c.name = 'Music')
+						where fa.film_id in (select f.film_id
+												from film f inner join film_category fc on f.film_id = fc.film_id inner join category c on fc.category_id = c.category_id
+												where c.name = 'Music')
 						);
 
 -- 57. Encuentra el título de todas las películas que fueron alquiladas por más de 8 días.
-select f.title
-from film f
-where f.rental_duration > 8;
+select distinct(f.title)
+from film f inner join inventory i on i.film_id = f.film_id inner join rental r on r.inventory_id = i.inventory_id 
+where r.return_date is not null and extract(day from (r.return_date - r.rental_date)) > 8;
 
 -- 58. Encuentra el título de todas las películas que son de la misma categoría que ‘Animation’.
 select distinct (f.title)
@@ -362,13 +374,13 @@ order by c.last_name asc;
 -- 61. Encuentra la cantidad total de películas alquiladas por categoría y muestra el nombre de la categoría junto con el recuento de alquileres.
 select c.name as Categoria, count(f.film_id) as Num_peliculas
 from rental r inner join inventory i ON r.inventory_id = i.inventory_id inner join film f on i.film_id =f.film_id inner join film_category fc
-on f.film_id = fc.category_id inner join category c on fc.category_id = c.category_id
+on f.film_id = fc.film_id inner join category c on fc.category_id = c.category_id
 group by c.name;
 
 -- 62. Encuentra el número de películas por categoría estrenadas en 2006.
 select c.name as Categoria, count(f.film_id) as Num_peliculas
 from rental r inner join inventory i ON r.inventory_id = i.inventory_id inner join film f on i.film_id =f.film_id inner join film_category fc
-on f.film_id = fc.category_id inner join category c on fc.category_id = c.category_id
+on f.film_id = fc.film_id inner join category c on fc.category_id = c.category_id
 where f.release_year = 2006
 group by c.name;
 
