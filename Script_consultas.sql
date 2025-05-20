@@ -47,11 +47,8 @@ select p.amount, p.rental_id
 from payment p
 where p.rental_id = (select r.rental_id 
 					from rental r
-					order by r.rental_date desc
+					order by r.rental_date desc, r.rental_id
 					limit 1 offset 2);
-select * from rental
-order by rental_date desc;
-
 
 /* 12. Encuentra el título de las películas en la tabla “filmˮ que no sean ni ‘NC-17ʼ ni
 ‘Gʼ en cuanto a su clasificación.*/
@@ -219,7 +216,7 @@ limit 5;
 select a.first_name, count(a.first_name)
 from actor a 
 group by a.first_name
-order by count(a.first_name) desc 
+order by count(a.first_name) desc, a.first_name desc 
 limit 1;
 	-- en este caso la comanda sería así, pero hay 3 nombres que se repiten 4 veces
 
